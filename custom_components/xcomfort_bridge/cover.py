@@ -7,12 +7,10 @@ from xcomfort.devices import Shade
 from homeassistant.components.cover import (
     ATTR_POSITION,
     CoverEntityFeature,
-    DEVICE_CLASS_SHADE,
     CoverEntity,
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DOMAIN, VERBOSE
@@ -26,16 +24,9 @@ def log(msg: str):
         _LOGGER.info(msg)
 
 
-# PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-# 	vol.Required(CONF_IP_ADDRESS): cv.string,
-# 	vol.Required(CONF_AUTH_KEY): cv.string,
-# })
-
-
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-
     hub = XComfortHub.get_hub(hass, entry)
 
     devices = hub.devices
@@ -67,7 +58,7 @@ class HASSXComfortShade(CoverEntity):
 
     @property
     def device_class(self):
-        return DEVICE_CLASS_SHADE
+        return "shade"
 
     async def async_added_to_hass(self):
         log(f"Added to hass {self._name} ")
@@ -120,7 +111,9 @@ class HASSXComfortShade(CoverEntity):
     @property
     def supported_features(self):
         """Flag supported features."""
-        supported_features = CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
+        supported_features = (
+            CoverEntityFeature.OPEN | CoverEntityFeature.CLOSE | CoverEntityFeature.STOP
+        )
         if self._device.supports_go_to:
             supported_features |= CoverEntityFeature.SET_POSITION
         return supported_features
@@ -128,7 +121,7 @@ class HASSXComfortShade(CoverEntity):
     async def async_open_cover(self, **kwargs):
         """Open the cover."""
         await self._device.move_up()
-    
+
     async def async_close_cover(self, **kwargs):
         """Close cover."""
         await self._device.move_down()

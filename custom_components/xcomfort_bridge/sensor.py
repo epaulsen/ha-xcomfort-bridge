@@ -1,4 +1,5 @@
 """Support for Xcomfort sensors."""
+
 from __future__ import annotations
 
 import time
@@ -10,7 +11,6 @@ from homeassistant.components.sensor import (
     RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
-    SensorEntityDescription,
     SensorStateClass,
 )
 
@@ -19,8 +19,9 @@ from xcomfort.devices import RcTouch
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
-    ENERGY_KILO_WATT_HOUR,
-    ENERGY_WATT_HOUR,
+    UnitOfEnergy,
+    UnitOfPower,
+    UnitOfTemperature,
     PERCENTAGE,
 )
 from homeassistant.core import HomeAssistant
@@ -57,6 +58,7 @@ async def async_setup_entry(
         if isinstance(device, RcTouch):
             _LOGGER.info(f"Adding humidity sensor for device {device}")
             sensors.append(XComfortHumiditySensor(device))
+            sensors.append(XComfortTemperatureSensor(device))
 
     _LOGGER.info(f"Added {len(sensors)} rc touch units")
     async_add_entities(sensors)
@@ -65,34 +67,20 @@ async def async_setup_entry(
 
 class XComfortPowerSensor(SensorEntity):
     def __init__(self, room: Room):
-        self._attr_device_class = SensorEntityDescription(
-            key="current_consumption",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=ENERGY_WATT_HOUR,
-            state_class=SensorStateClass.MEASUREMENT,
-            name="Current consumption",
-        )
         self._room = room
-        self._attr_name = self._room.name
-        self._attr_unique_id = f"energy_{self._room.room_id}"
+        self._attr_name = f"{self._room.name} power"
+        self._attr_unique_id = f"{self._room.room_id}_power_w"
+        self._attr_device_class = SensorDeviceClass.POWER
+        self._attr_native_unit_of_measurement = UnitOfPower.WATT
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._state = None
         self._room.state.subscribe(lambda state: self._state_change(state))
 
     def _state_change(self, state):
-
         should_update = self._state is not None
-
         self._state = state
         if should_update:
             self.async_write_ha_state()
-
-    @property
-    def device_class(self):
-        return SensorDeviceClass.ENERGY
-
-    @property
-    def native_unit_of_measurement(self):
-        return ENERGY_WATT_HOUR
 
     @property
     def native_value(self):
@@ -100,20 +88,14 @@ class XComfortPowerSensor(SensorEntity):
 
 
 class XComfortEnergySensor(RestoreSensor):
-
-    _attr_state_class = SensorStateClass.TOTAL
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
 
     def __init__(self, room: Room):
-        self._attr_device_class = SensorEntityDescription(
-            key="energy_used",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=ENERGY_KILO_WATT_HOUR,
-            state_class=SensorStateClass.TOTAL_INCREASING,
-            name="Energy consumption",
-        )
         self._room = room
-        self._attr_name = self._room.name
-        self._attr_unique_id = f"energy_kwh_{self._room.room_id}"
+        self._attr_name = f"{self._room.name} energy"
+        self._attr_unique_id = f"{self._room.room_id}_energy_kwh"
+        self._attr_device_class = SensorDeviceClass.ENERGY
+        self._attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
         self._state = None
         self._room.state.subscribe(lambda state: self._state_change(state))
         self._updateTime = time.time()
@@ -127,7 +109,6 @@ class XComfortEnergySensor(RestoreSensor):
             self._consumption = cast(float, savedstate.native_value)
 
     def _state_change(self, state):
-
         should_update = self._state is not None
         self._state = state
         if should_update:
@@ -143,14 +124,6 @@ class XComfortEnergySensor(RestoreSensor):
         self._updateTime = time.time()
 
     @property
-    def device_class(self):
-        return SensorDeviceClass.ENERGY
-
-    @property
-    def native_unit_of_measurement(self):
-        return ENERGY_KILO_WATT_HOUR
-
-    @property
     def native_value(self):
         self.calculate()
         return self._consumption
@@ -158,35 +131,45 @@ class XComfortEnergySensor(RestoreSensor):
 
 class XComfortHumiditySensor(SensorEntity):
     def __init__(self, device: RcTouch):
-        self._attr_device_class = SensorEntityDescription(
-            key="humidity",
-            device_class=SensorDeviceClass.HUMIDITY,
-            native_unit_of_measurement=PERCENTAGE,
-            state_class=SensorStateClass.MEASUREMENT,
-            name="Humidity",
-        )
         self._device = device
-        self._attr_name = self._device.name
+        self._attr_name = f"{self._device.name} humidity"
         self._attr_unique_id = f"humidity_{self._device.name}_{self._device.device_id}"
+        self._attr_device_class = SensorDeviceClass.HUMIDITY
+        self._attr_native_unit_of_measurement = PERCENTAGE
+        self._attr_state_class = SensorStateClass.MEASUREMENT
         self._state = None
         self._device.state.subscribe(lambda state: self._state_change(state))
 
     def _state_change(self, state):
-
         should_update = self._state is not None
-
         self._state = state
         if should_update:
             self.async_write_ha_state()
 
     @property
-    def device_class(self):
-        return SensorDeviceClass.HUMIDITY
+    def native_value(self):
+        return self._state.humidity
 
-    @property
-    def native_unit_of_measurement(self):
-        return PERCENTAGE
+
+class XComfortTemperatureSensor(SensorEntity):
+    def __init__(self, device: RcTouch):
+        self._device = device
+        self._attr_name = f"{self._device.name} temperature"
+        self._attr_unique_id = (
+            f"temperature_{self._device.name}_{self._device.device_id}"
+        )
+        self._attr_device_class = SensorDeviceClass.TEMPERATURE
+        self._attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+        self._attr_state_class = SensorStateClass.MEASUREMENT
+        self._state = None
+        self._device.state.subscribe(lambda state: self._state_change(state))
+
+    def _state_change(self, state):
+        should_update = self._state is not None
+        self._state = state
+        if should_update:
+            self.async_write_ha_state()
 
     @property
     def native_value(self):
-        return self._state.humidity
+        return self._state.temperature
