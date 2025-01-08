@@ -4,9 +4,9 @@
   "configurations": [
     {
       "name": "Python: Launch HomeAssistant",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
-      "program": "/usr/local/python/bin/hass",
+      "program": "/home/vscode/.local/bin/hass",
       "args": [
         "-c",
         "${workspaceFolder}",
